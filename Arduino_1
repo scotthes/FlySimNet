@@ -1,0 +1,42 @@
+#include <Kangaroo.h>
+#include <Servo.h>
+
+KangarooSerial K(Serial1);
+KangarooChannel K1(K, '1'); 
+Servo stooth; //Creates an object of type Servo to represent saberooth
+
+//VARIABLES
+unsigned long currentTime;
+int desiredMotorCommand, led = 13, rpm;
+long pos,new_pos,previous_pos,pos_incr;
+
+void setup() {
+  Serial.begin(57600);
+  Serial1.begin(9600); //because 0.0% error for this baud rate teensy 3.6 for all serial ports   
+  stooth.attach(10, 1000, 2000);
+  stooth.writeMicroseconds(1500);  
+  K1.start(); 
+  K1.home();  
+  K1.powerDown();
+  pinMode(led, OUTPUT);
+  digitalWrite(led,HIGH);
+}
+
+void loop() {
+  
+    for (int i = 1200; i< 1800 ; i++){
+      desiredMotorCommand = i;
+      stooth.write(desiredMotorCcommand); 
+      while(millis()<currentTime+150){
+        previous_pos = K1.getP().value();
+        delay 10;
+        new_pos = K1.getP().value();
+        pos_incr= new_pos - previous_pos;
+        rpm = (pos_incr*6000)/256;
+        Serial.println(rpm);
+      }
+      stooth.write(1500);
+      delay 1500;
+    }
+    
+}
