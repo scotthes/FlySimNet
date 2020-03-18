@@ -1,0 +1,101 @@
+%% FlySimNet
+% inverse kinematics for an array of x-y positions of the EE
+ 
+% input : x-y array of positions separated by a 1 ms time step
+% intermediate stage : calculate cable lengths and speeds from inverse kinematics model
+% output : motor drives and encoder values (using experimentally derived relationship
+ 
+% note: kinematics model for lengths and speeds was also used in trajectory analysis
+ 
+% Jan 2020 Chloe Orsini
+ 
+% load test file (enter correct name & select formula depending on whether it's a .xlsx, .csv or .mat))
+% NOTE: trajectory needs to be input/ converted in m with 1 ms time step
+% between positions
+%% 
+ 
+load("Sine_V01.mat");
+traj(:,1)=Trajectory(:,1);
+traj(:,2)=Trajectory(:,2);
+ 
+% enter positions of winches
+% assumes x0=y0=0, p1=(0,0), p2=(0,1), p3=(0.5,cos(30)) and dt=1/1000 s between positions in a trajectory
+% this whole model has been built with the assumption spools are arranged in
+% an equilateral 1m sided triangle
+xp1=0;
+yp1=0; 
+xp2=1;
+yp2=0;
+xp3=0.5;
+yp3=cos(30);
+ 
+ 
+% call inverse kin function for full vector
+[n,~]=size(traj);
+encodercodes=zeros(n,6); % store encoder codes and motor drives
+ 
+for i=1:1:n-1
+    oldx=traj(i,1);
+    newx=traj(i+1,1);
+    oldy=traj(i,2);
+    newy=traj(i+1,2);
+    
+   [encodercodes(i,1),encodercodes(i,2),encodercodes(i,3),encodercodes(i,4),encodercodes(i,5),encodercodes(i,6)] = inversekincodes(oldx, oldy, newx, newy, xp1, yp1, xp2, yp2, xp3, yp3);
+end
+ 
+% output .csv file = nx6
+%(encoder code1,2,3,motor drive 1,2,3)
+ 
+writematrix(encodercodes,"encoder_and_motor_codes_sinetraj.csv");
+ 
+% inverse kin function called above
+ 
+function [e1,e2,e3,m1,m2,m3] = inversekincodes(oldx, oldy, newx, newy, xp1, yp1, xp2, yp2, xp3, yp3)
+% inverse kinematic model of our cable robot with 3 cables and 2 DoF
+%   input position of EE and position of winches in robot CF
+ 
+%old cable lengths
+x=oldx;
+y=oldy;
+oL1=((x-xp1)^2+(y-yp1)^2)^(1/2);
+oL2=((x-xp2)^2+(y-yp2)^2)^(1/2);
+oL3=((x-xp3)^2+(y-yp3)^2)^(1/2);
+ 
+%new cable lengths : NOTE this is the total length not the change in length ! 
+x=newx;
+y=newy;
+l1=((x-xp1)^2+(y-yp1)^2)^(1/2);
+l2=((x-xp2)^2+(y-yp2)^2)^(1/2);
+l3=((x-xp3)^2+(y-yp3)^2)^(1/2);
+ 
+%convert to encoder position codes assuming: 1 revolution = 2*pi*(17mm) = 256
+% (experimentally derived)
+rev=2*pi*17*10^-3; %UPDATE RADIUS IF NEEDED
+e1=round(l1*256/rev);
+e2=round(l2*256/rev);
+e3=round(l3*256/rev);
+ 
+% cable speed
+% for a predetermined time step between each position
+%dt=1/240; % s - using time step from term 1 video digitization
+dt=1/1000; %1 ms: for sine trajectory (note: this normalizes the speed to m/s no need for further conversion
+ 
+s1=(l1-oL1)/dt; % in m/s
+s2=(l2-oL2)/dt;
+s3=(l3-oL3)/dt;
+ 
+% convert to motor code assuming a linear relationship between 0=0m/s and 127=9600 RPM
+% so m=RPMSpeed*127/9600
+% and then round up or down
+ 
+%% NOTE : this will later be replaced with the more precise experimentally derived relationship between speeds and motor drives
+ 
+RPMspeed1=s1*60/rev;
+RPMspeed2=s2*60/rev;
+RPMspeed3=s3*60/rev;
+ 
+m1=round(RPMspeed1*127/9600);
+m2=round(RPMspeed2*127/9600);
+m3=round(RPMspeed3*127/9600);
+ 
+end
