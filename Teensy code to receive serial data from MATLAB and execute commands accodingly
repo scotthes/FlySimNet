@@ -3,7 +3,14 @@
     *  Other source for INT > BYTE conversion : Arduino Forums
     * Writing command via ASCII %s\n
     * All command inputs must end with a carriage return or semicolon
-    */
+    *
+    * Main function of this code: receive commands from MATLAB.
+    * For a certain command it also receives and stores the array of encoder values and motor drives
+    * needed to run a certain trajectory.
+    * It will later be developped to execut a set of other necessary commands sent from the GUI.
+    *
+    *
+*/
 #include <EEPROM.h>
 
 unsigned long delTime=0;
