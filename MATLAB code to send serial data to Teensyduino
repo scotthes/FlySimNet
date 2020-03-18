@@ -1,0 +1,225 @@
+/* Serial communication betwee MATLAB and Teensyduino
+    *  Adapted from a code by Dr Huai Ti Lin
+    *  Other source for INT > BYTE conversion : Arduino Forums
+    * Writing command via ASCII %s\n
+    * All command inputs must end with a carriage return or semicolon
+    */
+#include <EEPROM.h>
+
+unsigned long delTime=0;
+unsigned long Interval=20000;  // 20ms
+unsigned long LastTime=0; // last time stamp
+unsigned long CurrentTime=0; // current time stamp
+unsigned long StartTime=CurrentTime; // mark the t0 point in microsecond
+char c = 'M'; // incoming command data - default = manual
+char buffer[128];
+uint8_t idx = 0;
+uint8_t EEPROMidx = 0;
+char *argv[8];//argument value: used as argument of the parse function ???
+char Command = 'M'; // set the internal command variable to manual
+int sizeOfArray = 0; // sets size of trajectory array
+// int EEPROM lim = sizeOfArray * 2 * 6 -1 // 6 values are sent and take 2 bytes each, but indexing starts at 0
+byte lowbyte; 
+byte highbyte; 
+int Z1 = 0;
+int Z2 = 0;
+int Z3 = 0;
+int led = 13;
+
+void setup() {
+  Serial.begin(115200); // This is COM6 that talks to the PC
+//  delay(2000); 
+  Serial.print("Initialized");
+//  delay(3000); 
+  pinMode(led, OUTPUT);
+  digitalWrite(led, HIGH);
+  delay(1000);
+  digitalWrite(led, LOW);
+}
+
+void loop() {
+
+  long timeOff=Interval-(micros()-LastTime);
+  delayMicroseconds(timeOff-100); // Delay the loop time to achieve constant loop Interval
+  CurrentTime = micros();
+  delTime= CurrentTime-LastTime;  
+//  Serial.println(CurrentTime);
+//  Serial.println(Command); 
+
+  Get_Serial_Command_2(); // try not to occupy the serial port prior to reading command
+  // note : this function changes the value of the variable 'Command'
+        
+ // mode 1 - TEST memory storage : READ array values from EEPROM => print all values currently being stored
+    if (Command == 'T') {
+    int i=0;
+    Serial.println(EEPROMidx);
+    
+    while ( i<((6*(sizeOfArray-1)/10)+1)) { 
+    //size of array = 10*(nb rows sent-1) ; 3 values sent per row
+    Serial.println(i);
+    
+    lowbyte = EEPROM.read(i);
+    highbyte = EEPROM.read(i+1);
+    Z1= (highbyte << 8) | lowbyte;
+    
+    lowbyte = EEPROM.read(i+2);
+    highbyte = EEPROM.read(i+3);
+    Z2= (highbyte << 8) | lowbyte;
+
+    lowbyte = EEPROM.read(i+4);
+    highbyte = EEPROM.read(i+5);
+    Z3= (highbyte << 8) | lowbyte;
+    
+    Serial.println(Z1);
+    Serial.println(Z2);
+    Serial.println(Z3);
+
+    i=i+6;
+    }
+    Serial.println("T test successful");  
+    Command = 'M'; //back to default
+    }
+
+    
+ // mode 2 - another example command to be sent from GUI at future stage (ex: initialize/ turn off/ enter calibration mode)
+    else if (Command == 'H') {
+    Serial.println("H test successful");
+    //digitalWrite(led, HIGH);
+    Command = 'M';
+    }    
+    
+
+ // Z-command: read serial array from EEPROM and print it (USED FOR DEBUGGING)
+ // final code will not have anything printed at this stage unless necessary
+    else if (Command == 'Z') {
+
+    lowbyte = EEPROM.read(EEPROMidx-2);
+    highbyte = EEPROM.read(EEPROMidx-1);
+    //Serial.println(0);
+    //Serial.println(EEPROMidx-2);
+    //Serial.println(lowbyte);
+    //Serial.println(highbyte);
+    Z3= (highbyte << 8) | lowbyte;
+    //Serial.println(Z1);
+    //Serial.println(Z2);
+    Serial.println(Z3);
+    //Serial.println(Z1);
+    Command = 'M';
+    }
+
+    // end of array transmission OR re-enter size of array currently stored on EEPROM
+    else if (Command == 'E') { 
+      Serial.println();
+      Serial.println(sizeOfArray);
+      Command='M';
+    }
+
+    
+    LastTime=CurrentTime;
+}
+
+//********************************************************//
+//     Get_Serial_Command function to read serial data    //
+//********************************************************//
+
+void Get_Serial_Command_2(){
+  
+  if ( Serial.available() > 0 ) 
+  {
+    c = Serial.read();    
+    
+    if (c == '\r' || c == ';') // we recognize the command input by a carriage return or semicolon - before that c keeps reading values that are then stored in buffer
+    {
+      buffer[idx] = 0;
+ //    Serial.println(c, BYTE);
+      uint8_t numargs = parse((char*)buffer, argv, sizeof(argv)); 
+      //   if( argv >= 7 )
+      {
+      
+       // === GET 1 VALUE AND STORE IT IN EEPROM === 
+       if( (strcmp(argv[0], "Z") == 0) ||(strcmp(argv[0], "z") == 0) )
+       {  Command = 'Z';
+          Z1 = atoi(argv[1]);// from the parse function: this gives us the value sent after the Z command
+      
+    // CONVERT INT INTO 2 BYTES BINARY NB FOR STORAGE IN EEPROM
+    // Break Z1 into upper and lower bytes
+    byte xlo = Z1;      // It automatically stores the lower bits of Z1
+    byte xhi = Z1 >> 8; // It stores the upper bits of Z1
+
+    EEPROM.write(EEPROMidx,xlo);
+    EEPROM.write(EEPROMidx+1,xhi);
+    EEPROMidx=EEPROMidx+2;
+   
+   // Put the bytes back together
+   // Z2 = (xhi << 8) | xlo; // used to test byte re-conversion to int
+     
+       } 
+
+        // === Begin Array === // resets EEPROMidx to 0 and overwrites previously stored array
+       else if( (strcmp(argv[0], "A") == 0 ) )
+       {  Command = 'A'; 
+       EEPROMidx=0;
+       } 
+
+       // === End Array === & communicate size of array
+       else if( (strcmp(argv[0], "E") == 0 ) )
+       {  Command = 'E'; 
+        sizeOfArray = atoi(argv[1]);
+       } 
+        
+        // === Test : reading EEPROM values currently stored in array ===
+       else if( (strcmp(argv[0], "T") == 0 ) )
+       {  Command = 'T'; 
+       //digitalWrite(led, HIGH);
+       } 
+
+       // === EXAMPLE COMMAND ===
+       else if( (strcmp(argv[0], "H") == 0))
+       {  Command = 'H'; 
+       digitalWrite(led, HIGH);
+       delay(1000);
+       digitalWrite(led, LOW);}  
+              
+      }  // end good # of args
+      idx = 0;  
+      
+//      Serial.print(lastcmd, HEX);
+      Serial.println(" cmd done");
+      Serial.flush();
+      
+    } // end command done
+    else if (((c == '\b') || (c == 0x7f)) && (idx > 0)) 
+    {
+      idx--;
+    }
+    else if ((c >= ' ') && (idx < sizeof(buffer) - 1)) 
+    {
+      buffer[idx++] = c;
+
+    } // endif end-of-line check
+  } // end if serial available
+}
+
+//******************************************************************//
+//     parse function to parse the data read in previous function   //
+//     (recover full string sent from MATLAB)                       //
+//******************************************************************//
+
+// -- command parsing function  // 
+
+uint8_t parse(char *line, char **argv, uint8_t maxArgs) {
+  uint8_t argCount = 0;
+  while (*line != '\0') 
+  {       /* if not the end of line ....... */ 
+     while (*line == ',' || *line == ' ' || *line == '\t' || *line == '\n')
+         *line++ = '\0';     /* replace commas and white spaces with 0    */
+     *argv++ = line;          /* save the argument position     */
+     argCount++;
+     if (argCount == maxArgs-1)
+        break;
+     while (*line != '\0' && *line != ',' && *line != ' ' &&  *line != '\t' && *line != '\n') 
+        line++;             /* skip the argument until ...    */
+  }
+  *argv = '\0';                 /* mark the end of argument list  */
+  return argCount;
+}
