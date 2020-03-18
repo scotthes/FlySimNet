@@ -1,0 +1,62 @@
+%% Serial transmission Code for sending data from MATLAB to Teensyduino
+% adapted from template provided by the Instrument Control Toolbox
+% Chloe Orsini Feb-March 2020
+%
+%   This is the machine generated representation of an instrument control
+%   session. The instrument control session comprises all the steps you are
+%   likely to take when communicating with your instrument. These steps are:
+%       1. Instrument Connection
+%       2. Instrument Configuration and Control
+%       3. Disconnect and Clean Up 
+%   Creation time: 11-Mar-2020 16:20:29
+
+%% Instrument Connection
+
+% Find a serial port object.
+obj1 = instrfind('Type', 'serial', 'Port', 'COM8', 'Tag', '');
+
+% Create the serial port object if it does not exist otherwise use the object that was found.
+if isempty(obj1)
+    obj1 = serial('COM8');
+else
+    fclose(obj1);
+    obj1 = obj1(1);
+end
+% Connect to instrument object, obj1.
+fopen(obj1);
+%% Instrument Configuration and Control - SENDING ARRAY VALUES
+
+% load array
+% (currently using an array of encoder values and motor drives outputed by
+% the kinematics code)
+encoder_motor=readmatrix("encoder_and_motor_codes_sinetraj.csv");
+[n,~]=size(encoder_motor);
+
+% Communicating with instrument object, obj1.
+fprintf(obj1,'A;'); % will signal the start of the array
+
+for i=1:10:10*fix(n/10) % send one in 10 values - 10 ms time step
+motorval1=num2str(encoder_motor(i,1));
+sendchar4=['Z' ' ' motorval1 ';'];
+motorval2=num2str(encoder_motor(i,2));
+sendchar5=['Z' ' ' motorval2 ';'];
+motorval3=num2str(encoder_motor(i,3));
+sendchar6=['Z' ' ' motorval3 ';'];
+
+fprintf(obj1,sendchar4);
+fprintf(obj1,sendchar5);
+fprintf(obj1,sendchar6);
+
+end
+
+fprintf(obj1,['E' ' ' num2str(i) ';'])
+
+%% Disconnect and Clean Up
+
+% Disconnect from instrument object, obj1.
+fclose(obj1);
+
+% Clean up all objects.
+delete(obj1);
+clear obj1;
+
