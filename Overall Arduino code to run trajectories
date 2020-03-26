@@ -1,0 +1,130 @@
+/* Flysimnet v3
+ *  - Uses RC mode for motor controller
+ *  - Control of one motor pod: 1 motor, 1 loadcell, 1 encoder
+ *  - Set initial position of spool 
+ * To include in next iteration
+ *  - Communication matlab - teensy 
+ *  - PID parameters
+ *  Components: teensy 3.6, sabertooth 2x12V, kangaroo
+ * !! Control box power needs to be on before plugging in the teensy
+ *  Juliette Ngan 
+ *  11/03/2020
+ */
+ 
+#include <Kangaroo.h>
+#include <Servo.h>
+#include <HX711.h>
+
+#define calibration_factor 1010000.0 //This value is obtained using the SparkFun_HX711_Calibration sketch
+#define DOUT  4
+#define CLK  5
+
+HX711 scale;
+
+KangarooSerial K(Serial1);    //encoders
+KangarooChannel K1(K, '1');
+
+Servo sabertooth;
+
+unsigned long currentTime, previousTime;
+double elapsedTime; 
+long err;
+double lastErr, sumErr, rateErr;
+int t_interval =1000;
+int led = 13;
+char cmnd = 'a';
+int Ki=0;     //need to change to pid parameters
+int Kp = 0;
+int Kd = 0;
+int pid_fudge, tension_correct, u;
+int pos_spd_array[2][5]= {{ 9000, 5000,8000,9000, 8000}, {1530, 1570, 1460, 1440, 1300}};//to be replaced with array uploaded from matlab 
+long pos; 
+
+long old_pos;
+long new_pos = 0;
+
+bool initialised = false;
+
+
+void setup() {
+  Serial.begin(57600); //communication with pc
+  Serial1.begin(9600); //communication to  kangaroo 
+  
+  sabertooth.attach(10, 1000, 2000);  //communication with sabertooth (range is 1000 to 2000)
+  sabertooth.writeMicroseconds(1500); //set initial speed to 0 
+    
+  K1.start();     //initialise kangaroo
+  K1.home();
+  K1.powerDown(); //powerdown kangaroo as we are only using it as encoder buffer
+
+  scale.begin(DOUT, CLK);   //initialise load cell
+  scale.set_scale(calibration_factor);
+  
+  pinMode(led, OUTPUT);   //debugss
+  digitalWrite(led,HIGH);
+  Serial.println("FlySimNet Initialised");
+}
+
+void loop() {
+  if (Serial.available()>0)
+  {
+    cmnd = Serial.read();    
+  }
+
+  if (cmnd =='i')   //move EE to initial position trajectory
+  {
+   pos = K1.getP().value();
+    while (pos<pos_spd_array[0][0])
+    {
+      sabertooth.write(1470);
+      pos = K1.getP().value();
+      Serial.println(pos);
+      delay (10);     
+    }
+    sabertooth.write(1500);
+    initialised = true; 
+    Serial.println("At initial position");
+
+  if (cmnd =='s'){
+  if (initialised) {
+   
+    Serial.println("Start trajectory");
+    for (int i = 0; i<5; i++){
+      //PID
+      err = pos_spd_array [0][i]-new_pos;
+      u = err*Kp + sumErr *Ki +(err - lastErr)*Kd;
+      lastErr = err;
+      sumErr +=err;
+      pid_fudge = map(u,0,100,0,200); 
+
+     //tension control 
+     tension_correct = 0;
+     if(scale.get_units()<0.1){
+      tension_correct = -50;      //tension correction factor needs to be tested
+     }  
+     if(scale.get_units()>1){
+      tension_correct = 50; 
+     }
+      currentTime = millis();
+      int spd = pos_spd_array[1][i] + pid_fudge +tension_correct;
+      sabertooth.write(spd);
+      while (millis()<currentTime + t_interval)
+      {
+     
+      }
+      new_pos = K1.getP().value();
+    }
+      sabertooth.write(1500);
+      Serial.println("End of trajectory ");
+     
+     
+    
+    }
+    else
+    {
+      Serial.print("Initialise trajectory by pressing i");
+    }
+  }
+  }
+  
+}
