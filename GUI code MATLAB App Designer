@@ -1,0 +1,632 @@
+%% Graphical User Interface - FlySimNet Project
+% Samuel Yeadon and Rachel Onion Tan - 2019-2020
+
+
+classdef GUIPROJECT1_5 < matlab.apps.AppBase
+ % Properties that correspond to app components
+    properties (Access = public)
+        UIFigure                     matlab.ui.Figure
+        TabGroup                     matlab.ui.container.TabGroup
+        FlightTrajectoryTab          matlab.ui.container.Tab
+        UIAxes                       matlab.ui.control.UIAxes
+        Data_originalTab             matlab.ui.container.Tab
+        UITable                      matlab.ui.control.Table
+        Data_newTab                  matlab.ui.container.Tab
+        UITable2                     matlab.ui.control.Table
+        FlySimcabledrivenrobotLabel  matlab.ui.control.Label
+        SelectfileButton             matlab.ui.control.Button
+        ExecuteButton                matlab.ui.control.Button
+        ClearButton                  matlab.ui.control.Button
+        Lamp                         matlab.ui.control.Lamp
+        Image                        matlab.ui.control.Image
+        ExportdataButton             matlab.ui.control.Button
+        Simnumber                    matlab.ui.control.EditField
+        SimulationNumberLabel        matlab.ui.control.Label
+        TranslationinXaxisLabel      matlab.ui.control.Label
+        TranslationinYaxisLabel      matlab.ui.control.Label
+        Ytrans                       matlab.ui.control.NumericEditField
+        Xtrans                       matlab.ui.control.NumericEditField
+        RotationKnobLabel            matlab.ui.control.Label
+        RotationKnob                 matlab.ui.control.Knob
+        ApplytranslationButton       matlab.ui.control.Button
+        ApplyrotationButton          matlab.ui.control.Button
+        LoadButton                   matlab.ui.control.Button
+        ResettooriginalButton        matlab.ui.control.Button
+        RunningLabel                 matlab.ui.control.Label
+        DrawpathButton               matlab.ui.control.Button
+        Image2                       matlab.ui.control.Image
+        Image2_2                     matlab.ui.control.Image
+        Image2_3                     matlab.ui.control.Image
+        JoystickLabel                matlab.ui.control.Label
+        Image2_4                     matlab.ui.control.Image
+        ImportpathButton             matlab.ui.control.Button
+        KinematicdatatransformationsLabel  matlab.ui.control.Label
+        CalibrationLabel             matlab.ui.control.Label
+        Image5                       matlab.ui.control.Image
+    end
+
+    properties (Access = public)
+       M_org_mat  % Describing all variables in public domain
+       M_main_mat
+       l_org
+       l_new
+       fig
+       ytop
+       joystickdata
+       lengthsandspeeds
+    end
+    % Callbacks that handle component events
+    methods (Access = private)
+
+        % Button pushed function: SelectfileButton
+        function SelectfileButtonPushed(app, event)
+        [file,path] = uigetfile('*.xlsx');
+                        if isequal(file,0)
+                           disp('User selected Cancel');
+                        else
+                           disp(['User selected ', fullfile(path,file)]);
+                        end  
+                    
+                    
+            opts = detectImportOptions([path file]);
+            opts.Sheet = 'Sheet1';
+            opts.SelectedVariableNames=(1:2);                       %Selecting columns to import
+            opts.DataRange='2:55';                                  %as has the title start from 2, may want to insert number of points
+
+            app.M_org_mat = readmatrix([path file],opts);           %reading the data table
+%             M = readtable([path file]);
+     
+                    for i=1:54
+                    app.UITable.Data(i,1)=app.M_org_mat(i,1);
+                    app.UITable.Data(i,2)=app.M_org_mat(i,2);
+                    
+                    end
+            
+            
+            app.UIAxes.XGrid = 'off';                               %changing properities of the plot
+            app.UIAxes.YGrid = 'off';
+            app.UIAxes.Color = [255/256 102/256 102/256];
+            hold(app.UIAxes, 'on');
+            app.UIAxes.YTick = -100:0.01:100;                        %Grid
+            app.UIAxes.XTick = -100:0.01:100;
+            
+            app.ytop = ((3/25)*((3)^0.5));
+            m1 = [0.12 app.ytop];                                        %setting the co-ordinates of the three motors
+            m2 = [0 0];
+            m3 = [0.24 0];
+
+            fill(app.UIAxes, [m1(1) m2(1) m3(1)],[m1(2) m2(2) m3(2)],'white');      %drawing the boundries of the motor on graph
+            hold(app.UIAxes, 'on');
+            
+            app.l_org = plot(app.UIAxes,app.M_org_mat(:,1),app.M_org_mat(:,2),'b-o');               %plotting the orignal plot
+            hold(app.UIAxes, 'on');
+            
+            for i=1:54 
+                       app.M_main_mat(i,1) = app.M_org_mat(i,1);
+                       app.M_main_mat(i,2) = app.M_org_mat(i,2);
+            end
+            app.UIAxes.XGrid = 'on';
+            app.UIAxes.YGrid = 'on';
+
+        end
+
+        % Button pushed function: ExportdataButton
+        function ExportdataButtonPushed(app, event)
+            
+            app.fig = figure('Visible',"off");                  %exporting the graph into a pdf file
+                     
+                    simname = app.Simnumber.Value;
+                    DateVector = (date);                
+                    date_today = datestr(DateVector);
+                    
+                   
+                    plot(app.UIAxes,app.M_main_mat(:,1),app.M_main_mat(:,2),'b-o');               
+                    title(app.UIAxes,['Simulation number: ' simname  '     Date: ' date_today]);
+                    xlabel(app.UIAxes,'X position');
+                    ylabel(app.UIAxes,'Y position');
+                    grid on;
+                    set(gca,'xtick',(-100:0.01:100));
+                    set(gca,'ytick',(-100:0.01:100));         
+                    
+                    saveas(app.fig,[simname '_simulation_Plot_' date_today],'pdf');
+        end
+
+        % Button pushed function: ApplytranslationButton
+        function ApplytranslationButtonPushed(app, event)
+                    %applying translations
+
+                    for i=1:54
+                       app.M_main_mat(i,1) = app.M_main_mat(i,1) + app.Xtrans.Value;
+                       app.M_main_mat(i,2) = app.M_main_mat(i,2) + app.Ytrans.Value;
+                       
+                    end
+                    
+                    delete(app.l_new);
+                    delete(app.l_org);
+                    app.l_new = plot(app.UIAxes,app.M_main_mat(:,1),app.M_main_mat(:,2),'b-o'); 
+                    
+                    for i=1:54
+                    app.UITable2.Data(i,1)=app.M_main_mat(i,1);
+                    app.UITable2.Data(i,2)=app.M_main_mat(i,2);
+                    
+                    end
+        end
+
+        % Button pushed function: ApplyrotationButton
+        function ApplyrotationButtonPushed(app, event)
+
+        theta = -app.RotationKnob.Value;  
+             
+             x = 0.12;
+             y = (3^0.5)/25;
+
+             for i=1:54
+             out =  [cosd(theta) -sind(theta) x*(1-cosd(theta))+y*sind(theta); sind(theta) cosd(theta) y*(1-cosd(theta))-sind(theta)*x; 0 0 1 ] * [app.M_main_mat(i,1); app.M_main_mat(i,2); 1];
+
+              app.M_main_mat(i,1)=out(1);
+              app.M_main_mat(i,2)=out(2);
+             
+             end
+             
+                    for i=1:54
+                    app.UITable2.Data(i,1)=app.M_main_mat(i,1);
+                    app.UITable2.Data(i,2)=app.M_main_mat(i,2);
+                    
+                    end
+                    
+                    
+                    delete(app.l_new);
+                    delete(app.l_org);
+                    app.l_new = plot(app.UIAxes,app.M_main_mat(:,1),app.M_main_mat(:,2),'b-o');
+             
+        end
+
+        % Button pushed function: ResettooriginalButton
+        function ResettooriginalButtonPushed(app, event)
+   
+            
+                    for i=1:54
+                    app.M_main_mat(i,1) = app.M_org_mat(i,1);
+                    app.M_main_mat(i,2) = app.M_org_mat(i,2);
+                    app.UITable2.Data(i,1)=app.M_main_mat(i,1);
+                    app.UITable2.Data(i,2)=app.M_main_mat(i,2);
+                    
+                    end
+                    
+                    delete(app.l_new);
+                    delete(app.l_org);
+                    app.l_new = plot(app.UIAxes,app.M_main_mat(:,1),app.M_main_mat(:,2),'b-o'); 
+
+        end
+
+        % Button pushed function: LoadButton
+        function LoadButtonPushed(app, event)
+                                       %% FlySimNet
+                % inverse kinematics for an array of x-y positions of the EE
+                % Chloe Orsini
+                
+                
+                % load test file (taken from sample digitized trajectory from first term)
+                traj=app.M_main_mat;
+                
+                
+                % enter positions of winches
+                % assumes x0=y0=0, p1=(0,0), p2=(0,1), p3=(0.5,cos(30)) and dt=1/240 between positions in a trajectory
+                xp1=0;
+                yp1=0; 
+                xp2=1;
+                yp2=0;
+                xp3=0.5;
+                yp3=cos(30);
+                
+                
+                % call inverse kin function for full vector
+                [n,~]=size(traj);
+                app.lengthsandspeeds=zeros(n,6);
+                
+                for i=1:1:n-1
+                    oldx=traj(i,1);
+                    newx=traj(i+1,1);
+                    oldy=traj(i,2);
+                    newy=traj(i+1,2);
+                    
+                   [app.lengthsandspeeds(i,1),app.lengthsandspeeds(i,2),app.lengthsandspeeds(i,3),app.lengthsandspeeds(i,4),app.lengthsandspeeds(i,5),app.lengthsandspeeds(i,6)] = inversekin(oldx, oldy, newx, newy, xp1, yp1, xp2, yp2, xp3, yp3);
+                end
+                
+                % output .csv file = nx6 with changes in length and cable speeds for all
+                % three cables (length1,length2,length3,speed1,speed2,speed3)
+                
+                writematrix(app.lengthsandspeeds,"lengths and speeds.csv");
+                
+                % inverse kin function called above
+                
+                function [l1,l2,l3,s1,s2,s3] = inversekin(oldx, oldy, newx, newy, xp1, yp1, xp2, yp2, xp3, yp3)
+                % inverse kinematic model of our cable robot with 3 cables and 2 DoF
+                %   input position of EE and position of winches in robot CF
+                % >> in main script : 
+                % stage 1 (complete)  : input array of positions 
+                % stage 2 (future) : input change of position in real time with keyboard commands
+                
+                
+                %old cable lengths
+                x=oldx;
+                y=oldy;
+                oL1=((x-xp1)^2+(y-yp1)^2)^(1/2);
+                oL2=((x-xp2)^2+(y-yp2)^2)^(1/2);
+                oL3=((x-xp3)^2+(y-yp3)^2)^(1/2);
+                
+                %new cable lengths : NOTE this is the total length not the change in length ! 
+                x=newx;
+                y=newy;
+                l1=((x-xp1)^2+(y-yp1)^2)^(1/2);
+                l2=((x-xp2)^2+(y-yp2)^2)^(1/2);
+                l3=((x-xp3)^2+(y-yp3)^2)^(1/2);
+                
+                % cable speed
+                % for a predetermined time step between each position
+                dt=1/240; % s - using time step from term 1 video digitization
+                
+                s1=(l1-oL1)/dt;
+                s2=(l2-oL2)/dt;
+                s3=(l1-oL3)/dt;
+               
+end
+        end
+
+        % Button pushed function: DrawpathButton
+        function DrawpathButtonPushed(app, event)
+  % This script plots the joystick orientation in 3D-space
+% Requires a joystick
+% Created March 2014 by Eric Cox 
+% http://ericcox.me
+
+% NOTE: To stop the program, hit ctrl+c. 
+% Otherwise, it will run indefinitely.
+
+% Define joystick ID (if only using 1 joystick, this will likely be '1')
+ID = 1;
+% Create joystick variable
+joy=vrjoystick(ID);
+
+% Select the number of time steps to rememeber 
+% (i.e., trailing tail length)
+n=100;
+
+% Preallocate vectors
+kz=zeros(1,n);
+ky=zeros(1,n);
+kx=zeros(1,n);
+app.joystickdata=[];
+
+% loop until ctrl+c
+while true
+    Y=axis(joy, 1);     % X-axis is joystick axis 1
+    X=axis(joy, 2);     % Y-axis is joystick axis 2
+    y=-sin(Y*pi/6);      % Correlate axis to angular orientation of joystick
+    x=-sin(X*pi/6);      % See above.
+    z=sqrt(1-x^2-y^2);  % Vertical height of joystick by Pythagoras
+%     % Define vector representing current joystick orientation
+%     z_v = [0 1]*z;
+%     y_v = [0 1]*y;
+%     x_v = [0 1]*x;
+    
+    % Define vectors representing joystick orientation history 
+    kz(end+1)=z;
+    kz=kz(2:n+1);
+    ky(end+1)=y;
+    ky=ky(2:n+1);
+    kx(end+1)=x;
+    kx=kx(2:n+1);   
+
+    % Plot marker to define end of joystick
+    plot3(x,y,z,'go','MarkerSize',5,'MarkerFaceColor','g')
+    hold on
+
+    % Plot historical data (if n>0)
+    plot3(kx,ky,kz,':r');
+    hold on
+    
+    app.joystickdata=[app.joystickdata; [kx ky]];
+
+    % define plot axes
+    axis([0 .5 0 .5 0 1])
+    
+    % delay between plots
+    pause(0.5)
+    
+    
+newx= app.joystickdata(:,100);
+newy= app.joystickdata(:,200);
+
+app.newflightpath=[newx, newy];
+app.numberpoints = length(app.newflightpath);
+    
+end   
+        end
+
+        % Button pushed function: ImportpathButton
+        function ImportpathButtonPushed(app, event)
+                    for i=1:app.numberpoints
+                    app.M_main_mat(i,1) = app.newflightpath(i,1);
+                    app.M_main_mat(i,2) = app.newflightpath(i,2);
+                    app.UITable2.Data(i,1)=app.newflightpath(i,1);
+                    app.UITable2.Data(i,2)=app.newflightpath(i,2);
+                    
+                    end
+                    
+                    delete(app.l_new);
+                    delete(app.l_org);
+                    app.l_new = plot(app.UIAxes,app.M_main_mat(:,1),app.M_main_mat(:,2),'b-o'); 
+        end
+
+        % Image clicked function: Image5
+        function Image5Clicked(app, event)
+
+            message = sprintf(['Select file; \n     Select your flight path file from your computer' ...
+                '\n\nReset to original;\n     Reset the path to original orientation and location' ...
+                '\n\nSimulation number; \n     Enter the simulation number' ...
+                '\n\nTranslation & Rotation;\n     Enter the values you want to translate/rotate and then click apply' ...
+                '\n\nLoad;\n     Run calculations for data values to run simulation' ...
+                '\n\nExecute;\n     Export the path to the robot to run simulation' ...
+                '\n\nClear;\n     Remove path from file']);
+            uialert(app.UIFigure,message,'Help','Icon','info');
+        end
+    end
+
+    % Component initialization
+    methods (Access = private)
+
+        % Create UIFigure and components
+        function createComponents(app)
+
+            % Create UIFigure and hide until all components are created
+            app.UIFigure = uifigure('Visible', 'off');
+            app.UIFigure.Color = [0.8471 0.902 0.8941];
+            app.UIFigure.Position = [100 100 1269 800];
+            app.UIFigure.Name = 'UI Figure';
+
+            % Create TabGroup
+            app.TabGroup = uitabgroup(app.UIFigure);
+            app.TabGroup.Position = [357 38 908 693];
+
+            % Create FlightTrajectoryTab
+            app.FlightTrajectoryTab = uitab(app.TabGroup);
+            app.FlightTrajectoryTab.Title = 'Flight Trajectory';
+            app.FlightTrajectoryTab.BackgroundColor = [0.902 0.902 0.902];
+
+            % Create UIAxes
+            app.UIAxes = uiaxes(app.FlightTrajectoryTab);
+            title(app.UIAxes, 'Flight Trajectory')
+            xlabel(app.UIAxes, 'X position / cm')
+            ylabel(app.UIAxes, 'Y position / cm')
+            app.UIAxes.PlotBoxAspectRatio = [1.28571428571429 1 1];
+            app.UIAxes.Layer = 'top';
+            app.UIAxes.GridAlpha = 0.5;
+            app.UIAxes.MinorGridAlpha = 0.25;
+            app.UIAxes.XTick = [0 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1];
+            app.UIAxes.XGrid = 'on';
+            app.UIAxes.YGrid = 'on';
+            app.UIAxes.BackgroundColor = [0.9412 0.9412 0.9412];
+            app.UIAxes.Position = [1 38 890 629];
+
+            % Create Data_originalTab
+            app.Data_originalTab = uitab(app.TabGroup);
+            app.Data_originalTab.Title = 'Data_original';
+
+            % Create UITable
+            app.UITable = uitable(app.Data_originalTab);
+            app.UITable.ColumnName = {'X position'; 'Y position'};
+            app.UITable.RowName = {};
+            app.UITable.Position = [1 1 906 666];
+
+            % Create Data_newTab
+            app.Data_newTab = uitab(app.TabGroup);
+            app.Data_newTab.Title = 'Data_new';
+
+            % Create UITable2
+            app.UITable2 = uitable(app.Data_newTab);
+            app.UITable2.ColumnName = {'X position'; 'Y position'};
+            app.UITable2.RowName = {};
+            app.UITable2.Position = [1 5 906 663];
+
+            % Create FlySimcabledrivenrobotLabel
+            app.FlySimcabledrivenrobotLabel = uilabel(app.UIFigure);
+            app.FlySimcabledrivenrobotLabel.FontName = 'Arial';
+            app.FlySimcabledrivenrobotLabel.FontSize = 23;
+            app.FlySimcabledrivenrobotLabel.FontWeight = 'bold';
+            app.FlySimcabledrivenrobotLabel.FontColor = [0.0235 0.3098 0.502];
+            app.FlySimcabledrivenrobotLabel.Position = [45 730 400 44];
+            app.FlySimcabledrivenrobotLabel.Text = 'FlySim cable driven robot';
+
+            % Create SelectfileButton
+            app.SelectfileButton = uibutton(app.UIFigure, 'push');
+            app.SelectfileButton.ButtonPushedFcn = createCallbackFcn(app, @SelectfileButtonPushed, true);
+            app.SelectfileButton.BackgroundColor = [0.5255 0.6431 0.7412];
+            app.SelectfileButton.Position = [45 685 100 22];
+            app.SelectfileButton.Text = 'Select file';
+
+            % Create ExecuteButton
+            app.ExecuteButton = uibutton(app.UIFigure, 'push');
+            app.ExecuteButton.BackgroundColor = [0.5294 0.6392 0.7412];
+            app.ExecuteButton.Position = [47 139 100 22];
+            app.ExecuteButton.Text = 'Execute';
+
+            % Create ClearButton
+            app.ClearButton = uibutton(app.UIFigure, 'push');
+            app.ClearButton.BackgroundColor = [0.5294 0.6392 0.7412];
+            app.ClearButton.Position = [46 102 100 22];
+            app.ClearButton.Text = 'Clear';
+
+            % Create Lamp
+            app.Lamp = uilamp(app.UIFigure);
+            app.Lamp.Position = [278 607 20 20];
+            app.Lamp.Color = [1 0 0];
+
+            % Create Image
+            app.Image = uiimage(app.UIFigure);
+            app.Image.Position = [1050 737 198 48];
+            app.Image.ImageSource = 'Imperial-College-London-Logo.png';
+
+            % Create ExportdataButton
+            app.ExportdataButton = uibutton(app.UIFigure, 'push');
+            app.ExportdataButton.ButtonPushedFcn = createCallbackFcn(app, @ExportdataButtonPushed, true);
+            app.ExportdataButton.BackgroundColor = [0.5255 0.6431 0.7412];
+            app.ExportdataButton.Position = [46 177 100 22];
+            app.ExportdataButton.Text = 'Export data';
+
+            % Create Simnumber
+            app.Simnumber = uieditfield(app.UIFigure, 'text');
+            app.Simnumber.Position = [35 606 142 22];
+
+            % Create SimulationNumberLabel
+            app.SimulationNumberLabel = uilabel(app.UIFigure);
+            app.SimulationNumberLabel.Position = [35 627 108 26];
+            app.SimulationNumberLabel.Text = 'Simulation Number';
+
+            % Create TranslationinXaxisLabel
+            app.TranslationinXaxisLabel = uilabel(app.UIFigure);
+            app.TranslationinXaxisLabel.Position = [198 549 112 22];
+            app.TranslationinXaxisLabel.Text = 'Translation in X axis';
+
+            % Create TranslationinYaxisLabel
+            app.TranslationinYaxisLabel = uilabel(app.UIFigure);
+            app.TranslationinYaxisLabel.Position = [198 473 112 22];
+            app.TranslationinYaxisLabel.Text = 'Translation in Y axis';
+
+            % Create Ytrans
+            app.Ytrans = uieditfield(app.UIFigure, 'numeric');
+            app.Ytrans.Position = [210 442 100 22];
+
+            % Create Xtrans
+            app.Xtrans = uieditfield(app.UIFigure, 'numeric');
+            app.Xtrans.Position = [210 515 100 22];
+
+            % Create RotationKnobLabel
+            app.RotationKnobLabel = uilabel(app.UIFigure);
+            app.RotationKnobLabel.HorizontalAlignment = 'center';
+            app.RotationKnobLabel.Position = [35 549 51 22];
+            app.RotationKnobLabel.Text = 'Rotation';
+
+            % Create RotationKnob
+            app.RotationKnob = uiknob(app.UIFigure, 'continuous');
+            app.RotationKnob.Limits = [0 360];
+            app.RotationKnob.Position = [62 454 60 60];
+
+            % Create ApplytranslationButton
+            app.ApplytranslationButton = uibutton(app.UIFigure, 'push');
+            app.ApplytranslationButton.ButtonPushedFcn = createCallbackFcn(app, @ApplytranslationButtonPushed, true);
+            app.ApplytranslationButton.BackgroundColor = [0.5294 0.6392 0.749];
+            app.ApplytranslationButton.Position = [204 402 106 22];
+            app.ApplytranslationButton.Text = 'Apply translation';
+
+            % Create ApplyrotationButton
+            app.ApplyrotationButton = uibutton(app.UIFigure, 'push');
+            app.ApplyrotationButton.ButtonPushedFcn = createCallbackFcn(app, @ApplyrotationButtonPushed, true);
+            app.ApplyrotationButton.BackgroundColor = [0.5294 0.6392 0.749];
+            app.ApplyrotationButton.Position = [46 402 100 22];
+            app.ApplyrotationButton.Text = 'Apply rotation';
+
+            % Create LoadButton
+            app.LoadButton = uibutton(app.UIFigure, 'push');
+            app.LoadButton.ButtonPushedFcn = createCallbackFcn(app, @LoadButtonPushed, true);
+            app.LoadButton.BackgroundColor = [0.5294 0.6392 0.749];
+            app.LoadButton.Position = [45 215 101 22];
+            app.LoadButton.Text = 'Load';
+
+            % Create ResettooriginalButton
+            app.ResettooriginalButton = uibutton(app.UIFigure, 'push');
+            app.ResettooriginalButton.ButtonPushedFcn = createCallbackFcn(app, @ResettooriginalButtonPushed, true);
+            app.ResettooriginalButton.BackgroundColor = [0.5294 0.6392 0.749];
+            app.ResettooriginalButton.Position = [207 685 103 22];
+            app.ResettooriginalButton.Text = 'Reset to original';
+
+            % Create RunningLabel
+            app.RunningLabel = uilabel(app.UIFigure);
+            app.RunningLabel.Position = [207 606 54 22];
+            app.RunningLabel.Text = 'Running ';
+
+            % Create DrawpathButton
+            app.DrawpathButton = uibutton(app.UIFigure, 'push');
+            app.DrawpathButton.ButtonPushedFcn = createCallbackFcn(app, @DrawpathButtonPushed, true);
+            app.DrawpathButton.BackgroundColor = [0.5412 0.651 0.7608];
+            app.DrawpathButton.Position = [54 318 92 22];
+            app.DrawpathButton.Text = 'Draw path';
+
+            % Create Image2
+            app.Image2 = uiimage(app.UIFigure);
+            app.Image2.Position = [36 550 293 52];
+            app.Image2.ImageSource = 'line.png';
+
+            % Create Image2_2
+            app.Image2_2 = uiimage(app.UIFigure);
+            app.Image2_2.Position = [35 351 293 52];
+            app.Image2_2.ImageSource = 'line.png';
+
+            % Create Image2_3
+            app.Image2_3 = uiimage(app.UIFigure);
+            app.Image2_3.Position = [35 266 293 52];
+            app.Image2_3.ImageSource = 'line.png';
+
+            % Create JoystickLabel
+            app.JoystickLabel = uilabel(app.UIFigure);
+            app.JoystickLabel.Position = [36 349 48 22];
+            app.JoystickLabel.Text = 'Joystick';
+
+            % Create Image2_4
+            app.Image2_4 = uiimage(app.UIFigure);
+            app.Image2_4.Position = [36 634 293 52];
+            app.Image2_4.ImageSource = 'line.png';
+
+            % Create ImportpathButton
+            app.ImportpathButton = uibutton(app.UIFigure, 'push');
+            app.ImportpathButton.ButtonPushedFcn = createCallbackFcn(app, @ImportpathButtonPushed, true);
+            app.ImportpathButton.BackgroundColor = [0.5412 0.651 0.7608];
+            app.ImportpathButton.Position = [218 318 92 22];
+            app.ImportpathButton.Text = 'Import path';
+
+            % Create KinematicdatatransformationsLabel
+            app.KinematicdatatransformationsLabel = uilabel(app.UIFigure);
+            app.KinematicdatatransformationsLabel.Position = [45 245 171 22];
+            app.KinematicdatatransformationsLabel.Text = 'Kinematic data transformations';
+
+            % Create CalibrationLabel
+            app.CalibrationLabel = uilabel(app.UIFigure);
+            app.CalibrationLabel.Position = [256 245 63 22];
+            app.CalibrationLabel.Text = 'Calibration';
+
+            % Create Image5
+            app.Image5 = uiimage(app.UIFigure);
+            app.Image5.ImageClickedFcn = createCallbackFcn(app, @Image5Clicked, true);
+            app.Image5.Position = [45 39 70 48];
+            app.Image5.ImageSource = 'Help.png';
+
+            % Show the figure after all components are created
+            app.UIFigure.Visible = 'on';
+        end
+    end
+
+    % App creation and deletion
+    methods (Access = public)
+
+        % Construct app
+        function app = GUIPROJECT1_5
+
+            % Create UIFigure and components
+            createComponents(app)
+
+            % Register the app with App Designer
+            registerApp(app, app.UIFigure)
+
+            if nargout == 0
+                clear app
+            end
+        end
+
+        % Code that executes before app deletion
+        function delete(app)
+
+            % Delete UIFigure when app is deleted
+            delete(app.UIFigure)
+        end
+    end
+end
